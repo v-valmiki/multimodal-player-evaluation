@@ -1,0 +1,123 @@
+# ============================================================
+# This project publishes documentation only.
+# Everything below is intentionally excluded from version control.
+# ============================================================
+
+# --- All source code and notebooks ---
+src/
+notebooks/
+configs/
+*.py
+*.ipynb
+*.ipynb_checkpoints
+
+# --- Data ---
+data/
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.csv
+*.tsv
+*.parquet
+*.json
+*.jsonl
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.pkl
+*.pickle
+
+# --- Model checkpoints / weights ---
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.pb
+*.tflite
+*.h5
+
+# --- Logs, experiment tracking ---
+logs/
+wandb/
+runs/
+lightning_logs/
+tensorboard/
+mlruns/
+*.log
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.installed.cfg
+*.egg
+
+# --- Virtual environments ---
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+conda-env/
+
+# --- Environment variables / secrets / credentials ---
+.env
+.env.*
+*.env
+credentials.json
+service-account*.json
+*.pem
+*.key
+secrets/
+config/secrets.yaml
+
+# --- Cloud provider configs (avoid leaking project IDs, keys) ---
+.gcloud/
+.aws/
+.azure/
+gcloud-key.json
+aws-credentials
+
+# --- Hugging Face cache / downloaded dataset artifacts ---
+.cache/
+huggingface/
+*.lock
+
+# --- IDE / editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Docker (if used later) ---
+*.dockerignore
+docker-compose.override.yml
+
+# --- Compiled / temp ---
+*.tmp
+*.bak
+*.orig
+tmp/
+temp/
+
+# --- Jupyter / IPython ---
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
