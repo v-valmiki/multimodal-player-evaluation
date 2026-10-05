@@ -4,6 +4,21 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Overfit smoke test
+
+- Setup: first 8 pilot-train videos, 16 frames, batch 4 (2 steps/epoch), bf16 autocast, AdamW (lr 1e-4 backbone, 1e-3 head), seed 0, dropout and stochastic depth off. Accuracy = mean over the 20 skills, measured in eval mode on the same 8 videos
+- Result: accuracy rose from 15.0% (untrained head) to 99.4% in 7 epochs (about 9.6 s/epoch), loss 1.63 -> 0.26
+
+| Epoch | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|---|
+| Loss | - | 1.627 | 1.471 | 1.291 | 1.133 | 0.743 | 0.523 | 0.257 |
+| Acc | 0.150 | 0.406 | 0.469 | 0.525 | 0.762 | 0.869 | 0.938 | 0.994 |
+
+- This shows the pipeline learns (data -> model -> loss -> optimizer -> eval agree with each other). It shows memorization capacity only, not generalization; the label counts across the 8 videos were 42/34/31/29/24 for levels 0-4
+- Single seed, single run
+
+---
+
 ## 2026-10-05 — Model wrapper and GPU cost
 
 - Added `SkillClassifier`: torchvision Swin3D-T (Kinetics-400 weights, 27.9M params) + dropout + linear head -> logits [B, 20, 5], mean cross-entropy over the 20 skills, optional per-stage gradient checkpointing
