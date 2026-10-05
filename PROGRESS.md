@@ -4,6 +4,35 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Fused attention (SDPA) for Swin3D: measured speedup
+
+- Decision: the user answered the TensorRT question with "proceed with q1"; I took that as the PyTorch-side option and optimized against the profile instead of using TensorRT (still blocked, see below)
+- Cause found in the torchvision source: the fp32 relative-position-bias parameter is added to the bf16 attention matrix, which promotes the whole [windows, heads, 392, 392] tensor to fp32; the mask add, softmax and dropout then run in fp32. The shift mask is also rebuilt with Python loops on every call
+- Patch (`patch_swin3d_sdpa`): computes bias and mask in the compute dtype, calls `scaled_dot_product_attention`, and caches the mask. Tests (5 pass): fp32 outputs match the stock model within 1e-4 at two input sizes, gradients to the relative-position-bias table match, bf16 CUDA output stays within a rounding-scale tolerance of the fp32 stock output, all 12 attention layers patched
+- Training step, 16 frames, batch 4, bf16 autocast, AdamW, no checkpointing; three alternating repetitions of 10 timed steps after 1 warm-up, current GPU state:
+
+| Variant | Sec/step (reps) | Mean | Peak VRAM |
+|---|---|---|---|
+| Stock | 0.219, 0.219, 0.211 | 0.216 | 5.39 GiB |
+| SDPA patch | 0.143, 0.131, 0.132 | 0.136 | 2.72 GiB |
+
+- Result: 1.60x faster training step and 49.5% less peak VRAM. Single-batch and batch-2 runs (3 timed steps each) agree in direction: batch 1 0.059 -> 0.048 s, batch 2 0.111 -> 0.074 s
+- Consequence: with the faster step, the input pipeline (about 6.4 videos/s at 4 workers) is now slower than the GPU (about 29 videos/s with the patch), so end-to-end training is input-bound until the loader is improved
+- Not yet measured: inference-only latency and precision comparison, end-to-end epoch time, accuracy effect of the patch after training (the patched model is mathematically the same function; not retrained)
+
+---
+
+## 2026-10-05 — Correction: earlier GPU timings were taken in a slow GPU state
+
+- While benchmarking the patch, the stock model ran 0.059 s/step at batch 1 where the identical benchmark earlier today gave 0.871 s. Re-running the original benchmark script unchanged now gives 0.062 s (batch 1) and 0.212 s (batch 4), against 0.871 s and 3.556 s earlier. Peak memory is identical (1.67 and 5.40 GiB), so the workload is the same and the GPU was running about 14-17x slower earlier
+- Re-profile under the current state (same script, same 4,797 kernel launches): total kernel time 0.61 s over 3 steps vs 10.42 s before; mean kernel 128 us vs 2,173 us. Training step compute 0.236 s; data wait 0.235 s mean (49.9% of the step)
+- Cause of the earlier slowness: not determined. Candidates are other GPU workloads or a power/clock state at the time (browser/wallpaper/game processes were present on the GPU in the first nvidia-smi listing; power plan is Performance on AC now); none was verified
+- What is superseded: all seconds-per-step figures from the model-memory benchmark, the 3.55 s/step profile, "GPU-bound / 0.0% data wait", and the clock/power readings from the first profile. What is unaffected: accuracy results (the pilot baseline, the overfit test), the loader benchmark (CPU-side, 6.41 videos/s at 4 workers, 16 frames), peak-memory figures, label statistics
+- Current kernel-time split (name-pattern heuristic): copy/cast/layout 27.3%, GEMM 26.7%, elementwise 21.8%, softmax 13.9%, layernorm 5.0%, reductions 4.2%. GPU busy 49.0% of the kernel span because the GPU waits for data
+- Lesson: record GPU clocks and a quick reference benchmark with every timing; absolute timings from this laptop are only comparable within one session
+
+---
+
 ## 2026-10-05 — TensorRT attempt: blocked by Windows Application Control
 
 - Installed `onnx` 1.23.1, `onnxscript` 0.7.2 and `tensorrt` 11.3.0.99 (CUDA 13 build; the runtime-libs wheel is 1.95 GB) into the local venv
@@ -16,6 +45,7 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ## 2026-10-05 — Profiling a training step (torch.profiler)
 
+- **SUPERSEDED in part: see "Correction: earlier GPU timings" above.** The conclusions below ("GPU-bound", "0.0% data wait", step time 3.55 s) were measured while the GPU was in a much slower state and do not hold now. Kept for the record.
 - Config: the baseline setup (Swin3D-T, 16 frames, batch 4, bf16 autocast, 4 loader workers), steady state after 2 warm-up steps, then `torch.profiler` over 3 active steps. Nsight Systems is not installed on this machine (no `nsys`), so this is `torch.profiler` only. Trace analysis uses GPU kernel events (not op wrappers, which double count)
 - Step time: 3.55 s per step of 4 videos, measured without the profiler (12 steps; max 3.57 s). Kernel span in the profiled steps: 3.57 s/step, consistent with it
 - Input pipeline: data wait was 0.000 s mean (0.0% of the step). Training is not input-bound
@@ -41,7 +71,7 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ## 2026-10-05 — Phase 1 pilot baseline run
 
-- Swin3D-T (K400 init) trained on the 100-video pilot train split for 15 epochs (about 99 s/epoch, about 25 min total, 16 frames, batch 4, bf16, seed 0). Val evaluated each epoch; test evaluated once at the best-val checkpoint. Full details and caveats in RESULTS.md
+- Swin3D-T (K400 init) trained on the 100-video pilot train split for 15 epochs (about 99 s/epoch, about 25 min total; these durations were measured in the slow GPU state described in the Correction entry, so they overstate current epoch time; accuracy results are unaffected, 16 frames, batch 4, bf16, seed 0). Val evaluated each epoch; test evaluated once at the best-val checkpoint. Full details and caveats in RESULTS.md
 - Result: test 18.5% (val 24.0% at the selected epoch, epoch 1). Val accuracy across all epochs: min 16.5%, max 24.0%, mean 19.2%. Baselines on the same test split: 20.0% uniform random, 21.3% train-majority
 - Train loss 1.63 -> 0.53, val loss 1.61 -> 2.22: memorization without generalization at this data size
 - This is a working end-to-end training pipeline with an honest pilot number at chance, not a result. Meaningful accuracy needs the full-season data (about 94 GB, over this loop's 10 GB download limit, so not started)
@@ -66,6 +96,7 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ## 2026-10-05 — Model wrapper and GPU cost
 
+- **Timing columns SUPERSEDED: see "Correction: earlier GPU timings" above.** The peak-memory columns are unaffected (re-measured identical). The seconds-per-step values were taken in a slow GPU state; the same configs now run about 14-17x faster.
 - Added `SkillClassifier`: torchvision Swin3D-T (Kinetics-400 weights, 27.9M params) + dropout + linear head -> logits [B, 20, 5], mean cross-entropy over the 20 skills, optional per-stage gradient checkpointing
 - Why not VideoMamba: weights exist on Hugging Face, but `mamba_ssm` (CUDA kernels) could not be obtained by pip here and there is no `nvcc`/MSVC; I did not attempt a from-source build. See RESULTS.md for the substitution note
 - 4 model tests pass (shape, backward, checkpointed gradients equal plain gradients, bf16 CUDA forward with pretrained weights). One test initially failed because Swin3D applies stochastic depth in train mode; seeding the RNG identically fixed it, so the model code was not at fault
