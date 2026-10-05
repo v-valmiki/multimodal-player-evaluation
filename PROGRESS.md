@@ -11,7 +11,9 @@ Updated periodically as work moves forward. Most recent entry first.
 - Training setup: same protocol as the Swin3D runs (full NCAA D1 2018-19 season, same hyperparameters, cached frames, bf16, per-epoch val, best epoch chosen on val, test evaluated once), new 100-way head, all 32 layers gradient-checkpointed (peak 2.7 GiB at batch 4)
 - Speed: 2.68 s per step at batch 4 (262 steps per epoch, about 12 minutes plus evaluation), about 20 times slower per step than Swin3D-T on the same GPU, so a 15-epoch run would take about 3 hours. Because of that, the VideoMamba run uses a 6-epoch one-cycle schedule instead of 15 (the Swin3D runs peaked at epochs 4-5), a stated deviation from the Swin3D protocol, and only seed 0 is run
 - Incident: the first 15-epoch attempt froze at step 86 of epoch 1 after the laptop slept for about 90 minutes (the WSL GPU context did not survive the suspend). Killed, verified a fresh process works, restarted with per-25-step progress logging and a power request that holds the machine awake while the run lasts
-- Result: pending; this entry is updated when the run finishes
+- Result (6 epochs, seed 0, finished): best epoch 3, val 24.9%, test 23.0% (per-category test: Shooting 21.9, Rebounding 20.2, Defense 22.7, Playmaking 21.6, Offense 27.0). Val curve 23.0, 23.3, 24.9, 23.6, 24.0, 23.8; train loss 1.62 -> 1.23, val loss 1.59 -> 1.72 (overfitting, slower onset than Swin3D-T). Epoch times 1,294 s (GPU throttled, about 4.4 s/step) then 484, 476, 458, 464, 464 s (about 1.7 s/step at full clocks); the 2.7 GiB peak is with all 32 layers checkpointed
+- Versus Swin3D-T on the same data (3 seeds, 15 epochs): 23.4 +/- 0.2 overall. Not distinguishable (single seed, shorter schedule, 361 test videos); both put Offense first. Full comparison table and limits in RESULTS.md
+- Checkpoint `checkpoints/vm_ncaa1819_seed0_best.pt`, results `logs/vm_ncaa1819_seed0_results.json`, the stalled first attempt's log kept as `logs/vm_ncaa1819_seed0_stalled.log`
 
 ---
 
