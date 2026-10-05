@@ -1,6 +1,6 @@
 # Basketball Player Evaluation via Multimodal Deep Learning
 
-**Status:** Active — Phase 0 (pipeline development)
+**Status:** Active — Phase 1 baseline complete (video-only, NCAA D1 2018-19: 23.4% test vs 20.0% chance, 3 seeds); GPU optimization results in [RESULTS.md](RESULTS.md); Phases 2-4 pending
 **Started:** July 2026
 
 ## Problem
