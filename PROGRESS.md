@@ -4,6 +4,16 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Re-profile after optimization (before/after)
+
+- Same profiler, same session, optimized config (SDPA attention + cached frames) versus the stock re-profile. Table in RESULTS.md
+- Step time 0.47 s -> 0.134 s (3.5x); loader wait share 49.9% -> 0.2%; GPU busy 49.0% -> 88.5% of the kernel span; kernel time over 3 steps 0.61 s -> 0.36 s; launches per step 1,599 -> 1,289
+- Kernel mix: matmul 26.7% -> 50.5% of GPU time; softmax kernels 13.9% (78 launches) -> 0.0% (6 launches), replaced by memory-efficient fused attention kernels (26.9% of GPU time); copy/cast/layout 27.3% -> 21.7%
+- Remaining non-matmul cost: copy/cast/layout (1,857 launches over 3 steps), elementwise, layernorm. Candidates for further work, not tried: CUDA graphs, `torch.compile` (needs Triton, not available on this Windows setup), fusing the window partition/reverse copies
+- Nsight Systems was not available; these are `torch.profiler` results
+
+---
+
 ## 2026-10-05 — Cached frames remove the input bottleneck: end-to-end epoch time
 
 - Problem (from the re-profile): after the GPU-side fixes the loop is input-bound; decoding with random seeks supplies only about 6 videos/s
