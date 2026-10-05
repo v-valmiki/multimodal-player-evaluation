@@ -4,6 +4,34 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Custom CUDA kernel: fused Swin3D window partition/reverse
+
+- Motivation (from the profile): after fused attention, copy/cast/layout kernels were still 21.7% of GPU time. Swin's windowed attention does pad -> roll -> view/permute/reshape (three full passes over the activations) per layer on the way in and the mirror image on the way out; both are pure index permutations plus zero padding
+- Implementation (`src/kernels/window_ops.cu`, about 150 lines): one gather kernel per direction; every thread moves one 16-byte vector (8 x bf16/fp16 or 4 x fp32) and computes the shift, window and padding index math itself, writing zeros for padding. The two ops are each other's adjoint, so autograd uses the opposite kernel for backward. Built with nvcc 13.1 for sm_120 as a JIT PyTorch extension; requires channels x element size to be a multiple of 16 bytes (true for Swin-T's 96/192/384/768)
+- Correctness: bitwise-equal to PyTorch's own pad+roll+permute on 6 shape cases (including padding in all three dims, shifts, odd window sizes) in fp16, bf16 and fp32, forward and gradients (22 tests); and the full model gives the same outputs with and without the kernels (fp32 within 1e-5, bf16 within 1e-3)
+- Microbenchmark, bf16, batch 4, medians over 7 interleaved rounds (CUDA events), tight spreads (stage 2/3 min-max within about 3%):
+
+| Swin3D-T stage (input shape) | Partition stock -> fused | Reverse stock -> fused | Fused speed vs a plain device copy of the same tensor |
+|---|---|---|---|
+| Stage 1 (4,8,56,56,96) | 818.5 -> 93.0 us (8.8x) | 817.6 -> 97.6 us (8.4x) | 51% / 48% |
+| Stage 2 (4,8,28,28,192) | 630.0 -> 76.8 us (8.2x) | 580.0 -> 70.6 us (8.2x) | 41% / 44% |
+| Stage 3 (4,8,14,14,384) | 291.6 -> 39.8 us (7.3x) | 269.0 -> 35.9 us (7.5x) | 64% / 70% |
+
+- These tensors (5-19 MB) fit in the GPU's L2 cache, so speed is reported relative to a copy of the same tensor, not as a DRAM bandwidth figure
+- End to end (interleaved A/B training step, 16 frames, batch 4, bf16, 7 rounds after a 30 s warm-up, medians; the GPU was in a slow, throttled state so absolute times are about 2x the earlier Windows numbers, but the ratios are stable):
+
+| Variant | Step time (min-max) | Speedup vs stock | Peak VRAM |
+|---|---|---|---|
+| Stock | 449.8 ms (436.6-489.1) | 1.00x | 5.44 GiB |
+| + fused attention (SDPA) | 302.6 ms (278.1-364.8) | 1.49x | 2.77 GiB |
+| + SDPA + custom CUDA window kernels | 261.6 ms (236.2-293.2) | 1.72x | 2.77 GiB |
+
+- Paired per-round ratio SDPA / (SDPA + custom kernels): median 1.167 (min 1.048, max 1.270), so the kernels add about 17% on top of fused attention; stock / SDPA median 1.467 (1.34-1.62), consistent with the 1.60x measured earlier on Windows
+- Clock-independent evidence from two Nsight Systems captures (10 training steps each): copy/cast/layout kernel launches per step 619 -> 519, with 48 custom-kernel launches added, total launches per step 1,284 -> 1,232. GPU milliseconds per step are not comparable across the two captures (the same untouched attention-backward kernel averaged 7.9 ms in one and 3.2 ms in the other, a GPU-state effect)
+- Not available: Nsight Compute counters (permission error), so no DRAM-throughput percentage or occupancy numbers for the kernel; not done: fusing the autocast dtype cast into the partition kernel, fusing the bias/mask add, CUDA graphs
+
+---
+
 ## 2026-10-05 — TensorRT 11.3 vs tuned PyTorch (WSL): real engines, noisy latencies
 
 - Built real TensorRT engines from the ONNX export of the trained pilot checkpoint (batch 1 and batch 4, static shapes): fp32, fp16, bf16, plus fp16 from an SDPA-graph ONNX (opset 23). Engine build time per precision (both batch sizes together): fp32 55 s, fp16 66 s, bf16 86 s. Compared against PyTorch fp32 stock, fp16+SDPA, bf16+SDPA and fp16+SDPA+`torch.compile` (compile 37-59 s) on the same 50 val+test videos
