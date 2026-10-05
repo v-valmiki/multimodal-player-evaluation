@@ -6,6 +6,7 @@ See [FINDINGS.md](FINDINGS.md) for the published results this plan is grounded i
 
 | Tier | Resource | Availability |
 |---|---|---|
+| Local | RTX 5070 Ti Laptop GPU (12 GB, Blackwell sm_120), PyTorch 2.11 + CUDA 12.8 | Now |
 | 0 | Berkeley DataHub (CPU-only JupyterHub) | Now |
 | 1 | Cloud student credits (GCP/AWS/Azure, T4/L4 GPU) | Now |
 | 2 | Savio HPC (L40s/V100s/A5000s) via CS 199 faculty sponsorship | Pending enrollment |
