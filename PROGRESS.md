@@ -4,6 +4,15 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Dataset class
+
+- Added a `BasketDataset` (decord decode with in-decoder resize to 224x224, deterministic uniform frame sampling over the full video, ImageNet normalization) returning `frames[T,3,224,224]` and 20 skill labels (0-4)
+- 7 pytest tests pass in 14.6 s on the pilot CSVs: shape/dtype for T=8 and 16, label range, length, determinism, distinct videos differ, index coverage
+- Visually checked a decoded 8-frame strip: colors and content correct; frames are aspect-squashed because 704x400 is resized directly to 224x224 (matches the plan)
+- Not yet measured: loader throughput (task 2)
+
+---
+
 ## 2026-10-05 — Data access and pilot subset
 
 - Hugging Face login confirmed; gated BASKET access works
