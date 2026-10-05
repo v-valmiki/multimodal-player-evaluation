@@ -4,6 +4,16 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — TensorRT attempt: blocked by Windows Application Control
+
+- Installed `onnx` 1.23.1, `onnxscript` 0.7.2 and `tensorrt` 11.3.0.99 (CUDA 13 build; the runtime-libs wheel is 1.95 GB) into the local venv
+- ONNX export of the trained model succeeds (torch.onnx dynamo exporter, opset 18, 16x224x224 input; 1,354 graph nodes; passes the ONNX checker)
+- `import tensorrt` fails: "An Application Control policy has blocked this file." Read-only checks: the Python binding `tensorrt.cp313-win_amd64.pyd` is not code-signed, NVIDIA's `nvinfer_11.dll` is signed, and the Smart App Control registry value is 1 (enforcing). No security settings were changed and no workaround was attempted
+- Consequence: no TensorRT engine was built and no FP32 vs FP16 TensorRT numbers exist; nothing is claimed about TensorRT speedups. The `tensorrt` package remains installed but unusable until the policy question is settled
+- Open question for the project owner is recorded in the (local) task file; options considered: PyTorch-side optimization against the profile above, ONNX Runtime GPU, turning Smart App Control off (not reversible without a Windows reset per Microsoft's documentation; not done), or TensorRT under WSL2/Linux
+
+---
+
 ## 2026-10-05 — Profiling a training step (torch.profiler)
 
 - Config: the baseline setup (Swin3D-T, 16 frames, batch 4, bf16 autocast, 4 loader workers), steady state after 2 warm-up steps, then `torch.profiler` over 3 active steps. Nsight Systems is not installed on this machine (no `nsys`), so this is `torch.profiler` only. Trace analysis uses GPU kernel events (not op wrappers, which double count)
