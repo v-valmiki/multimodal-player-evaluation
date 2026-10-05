@@ -29,7 +29,7 @@ Human baseline (3-level version of the task, 33.3% random floor): novices 43%, e
 | Playmaking | 25.39 |
 | **Offense** (Contribution, Efficiency, Impact, Teamwork, Consistency) | **34.60** |
 
-Offense sub-skills — Impact (37.24%) and Efficiency (36.14%) specifically — score well above every other category. These are the skills most correlated with aggregate box-score production. The paper does not test statistical fusion, but this pattern is the direct motivation for Hypothesis 1 in this project: skills closer to statistical aggregates are easier for a pure video model to approximate; skills requiring visual technique judgment (Contested-shots: 24.14%) are where video alone struggles most.
+Offense sub-skills — Impact (37.24%) and Efficiency (36.14%) specifically — score well above every other category. These are the skills most correlated with aggregate box-score production. The paper does not test statistical fusion, but this pattern is the direct motivation for Hypothesis 1 in this project: skills closer to statistical aggregates are easier for a pure video model to approximate; skills requiring visual technique judgment (lowest single skill: 3-PTs at 24.14%; Contested-shots is 26.62%, per the paper's Table 8) are where video alone struggles most.
 
 ## Finding 2 — Scaling web pretraining does not transfer
 
