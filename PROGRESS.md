@@ -4,6 +4,19 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Phase 1 baseline on the full NCAA D1 2018-19 season
+
+- Downloaded the full slice (1,566 videos, 93.9 GB, about 32 min), built full-split CSVs (1,046 / 159 / 361, all on disk), and cached decoded frames (3.9 GB; all 1,566 videos decoded with 0 failures in 208 s)
+- Trained Swin3D-T with the pilot's hyperparameters (fixed before the pilot, none tuned), SDPA patch + cached frames, 15 epochs, seeds 0, 1, 2. Epoch time about 40-50 s (including val), about 11-12 min per run (the pilot took 99 s/epoch on 100 videos in the earlier slow GPU state)
+- Test accuracy: 23.6, 23.2, 23.5 (mean 23.4, std 0.2). Val at the selected epoch: 26.2, 26.7, 25.6. Selected epochs 5, 4, 4. Chance 20.0%; train-majority baseline 17.8% test
+- Per-category test (mean of 3 seeds): Shooting 21.4, Rebounding 21.9, Defense 23.2, Playmaking 19.7, Offense 28.8. Best skills: Contribution 33.0, Impact 30.6, Efficiency 28.3, Teamwork 27.2 (all Offense); weakest: 3-pt Shooting 18.8, Overall Shooting 19.1, Passing Accuracy 19.1, Steals 19.8
+- Same category ordering as the paper (Offense highest), which supports the motivation for Hypothesis 1 (video-only models capture stats-aggregate-like skills first); fusion itself is untested
+- Overfitting: final train loss 0.58-0.60 vs val loss 2.35-2.39; best epoch early in all seeds
+- Caveats: seed spread excludes variation from the choice of videos; test set is 361 videos; Swin3D-T not VideoMamba; 5.3% of the official training set; single hyperparameter setting; no augmentation or regularization sweep
+- Full write-up with the comparison table in RESULTS.md. Note: someone else (probably the other session) also edited `src/models/fast_swin.py` (added a `USE_MASK_CACHE` flag, default on) and `src/data/dataset.py` while this ran; behavior of the runs above was unaffected as far as I can tell (classes and defaults unchanged)
+
+---
+
 ## 2026-10-05 — Re-profile after optimization (before/after)
 
 - Same profiler, same session, optimized config (SDPA attention + cached frames) versus the stock re-profile. Table in RESULTS.md
