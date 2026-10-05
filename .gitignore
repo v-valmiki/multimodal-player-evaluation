@@ -121,3 +121,6 @@ temp/
 .ipynb_checkpoints/
 profile_default/
 ipython_config.py
+
+# --- Local assistant notes ---
+CLAUDE.md
