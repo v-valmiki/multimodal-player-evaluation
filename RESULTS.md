@@ -31,6 +31,25 @@ The plan named VideoMamba (74M) as the Phase 1 backbone. Its pretrained weights 
 - Per-category test accuracies (24.0 / 16.7 / 18.3 / 13.3 / 17.3) come from 30 videos per skill and are noise-dominated; they should not be read as a category pattern (for example, val Offense was 30.0% while test Offense was 17.3%).
 - Interpretation limits: this run cannot separate "too little data" from "the signal is not learnable by this backbone/setup". The paper trains on the full dataset and reaches 28.5% even at best, so a pilot at chance is not surprising, but also not evidence either way.
 
+## Training-step optimization (Phase 1 pilot setup)
+
+Profiled with `torch.profiler` (3 active steps after 2 warm-up, GPU kernel events only), 16 frames, batch 4, bf16 autocast, 4 loader workers, same session and GPU state for both columns. Nsight Systems is not installed, so these are `torch.profiler` numbers.
+
+| Metric | Stock attention, no cache | SDPA attention + cached frames |
+|---|---|---|
+| Step time (data wait + compute) | 0.47 s (0.235 + 0.236) | 0.134 s (0.000 + 0.134) |
+| Loader wait share of step | 49.9% | 0.2% |
+| GPU kernel time, 3 steps | 0.61 s | 0.36 s |
+| GPU busy (share of kernel span) | 49.0% | 88.5% |
+| Kernel launches per step | 1,599 | 1,289 |
+| Matmul (GEMM) share of GPU time | 26.7% | 50.5% |
+| Softmax kernels | 13.9% (78 launches) | 0.0% (6 launches); replaced by fused attention kernels, 26.9% |
+| Full-epoch time, 100 videos (2 runs) | 13.8 to 17.3 s | 3.5 to 3.6 s |
+
+- Net: step time 3.5x lower (0.47 to 0.134 s); epoch time 3.8x to 4.9x lower. After the changes the GPU is mostly busy with matmul and fused attention instead of copies, fp32 elementwise ops and softmax.
+- What changed: (1) the relative-position bias no longer promotes the attention matrix to fp32 and attention uses `scaled_dot_product_attention`; (2) decoded uint8 frames are cached on disk so the loader no longer decodes with random seeks every epoch.
+- Not claimed: any accuracy effect (the patched attention computes the same function; fp32 outputs matched within 1e-4 in tests, bf16 outputs within rounding), any TensorRT result, any multi-GPU or full-dataset scaling.
+
 ## Inference optimization (Phase 1 pilot model)
 
 Measured on the RTX 5070 Ti Laptop (12 GB), 16 frames at 224x224, the trained pilot checkpoint, 30 timed forwards after 5 warm-up (median), single session. Correctness is reported as agreement with the fp32 stock model over all 50 val+test pilot videos (1,000 per-skill predictions), not as accuracy: the pilot model is at chance (about 18.7% test), so accuracy deltas would be meaningless.
