@@ -4,6 +4,16 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Phase 1 pilot baseline run
+
+- Swin3D-T (K400 init) trained on the 100-video pilot train split for 15 epochs (about 99 s/epoch, about 25 min total, 16 frames, batch 4, bf16, seed 0). Val evaluated each epoch; test evaluated once at the best-val checkpoint. Full details and caveats in RESULTS.md
+- Result: test 18.5% (val 24.0% at the selected epoch, epoch 1). Val accuracy across all epochs: min 16.5%, max 24.0%, mean 19.2%. Baselines on the same test split: 20.0% uniform random, 21.3% train-majority
+- Train loss 1.63 -> 0.53, val loss 1.61 -> 2.22: memorization without generalization at this data size
+- This is a working end-to-end training pipeline with an honest pilot number at chance, not a result. Meaningful accuracy needs the full-season data (about 94 GB, over this loop's 10 GB download limit, so not started)
+- Not run: multiple seeds, LR or augmentation sweeps (the 20/30-video val/test sets are too small to tell configurations apart)
+
+---
+
 ## 2026-10-05 — Overfit smoke test
 
 - Setup: first 8 pilot-train videos, 16 frames, batch 4 (2 steps/epoch), bf16 autocast, AdamW (lr 1e-4 backbone, 1e-3 head), seed 0, dropout and stochastic depth off. Accuracy = mean over the 20 skills, measured in eval mode on the same 8 videos
