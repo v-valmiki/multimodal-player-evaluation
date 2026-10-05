@@ -4,6 +4,16 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — WSL2/Linux environment unblocks TensorRT, Nsight and custom CUDA
+
+- Why Windows blocked these: Smart App Control refuses TensorRT's unsigned Python binding, and there is no nvcc/MSVC to build `mamba_ssm`. Neither applies inside WSL2
+- WSL2 Ubuntu 26.04 was already installed on the machine and sees the same RTX 5070 Ti (Windows driver 591.84, 12 GB). Set up (all by apt/pip, no security settings changed): CUDA Toolkit 13.1 (matches the driver's CUDA 13.1; includes nvcc, Nsight Systems 2025.5.2, Nsight Compute 2025.4.1; no Linux GPU driver is installed), a Python 3.14 venv with PyTorch 2.14.1+cu130 (with Triton 3.8, so `torch.compile` works), TensorRT 11.3, ONNX, timm, pynvml
+- Cross-check: the same fp32 and fp16+SDPA PyTorch variants measured 32.0 / 8.9 ms (batch 1) in WSL in a good moment, versus 31.5 / 9.6 ms on Windows earlier, so the two environments agree when the GPU is in the same state
+- Nsight Systems works under WSL. Nsight Compute does not yet: it reports `ERR_NVGPUCTRPERM` (GPU performance counters are not readable). Fix is a driver setting on the Windows side (NVIDIA Control Panel, Developer, Manage GPU Performance Counters: allow all users); not changed by me because it is a driver permission
+- Clarification on earlier notes: the `USE_MASK_CACHE` flag in `fast_swin.py` and the path-separator-independent cache key in `dataset.py` were added in this session (the first so ONNX tracing never caches fake tensors, the second so Windows-style CSV paths resolve to the same cache files on Linux); defaults and cache file names are unchanged, so the earlier runs are unaffected. All 1,566 cache keys still resolve
+
+---
+
 ## 2026-10-05 — Phase 1 baseline on the full NCAA D1 2018-19 season
 
 - Downloaded the full slice (1,566 videos, 93.9 GB, about 32 min), built full-split CSVs (1,046 / 159 / 361, all on disk), and cached decoded frames (3.9 GB; all 1,566 videos decoded with 0 failures in 208 s)
