@@ -4,6 +4,16 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Scouting-report agent (NVIDIA NIM or local LLM): built and tested, not yet run live
+
+- What it does: takes the trained Swin3D-T model's per-skill probabilities for a test video (dumped for all 361 test videos; top-1 over those 7,220 predictions 23.5%, matching the baseline) and has an LLM write a short scouting report. The LLM is a writer, not a source of facts: the prompt contains only the model output plus the model's measured reliability (23.4% top-1 overall vs 20% chance; by category Shooting 21.4, Rebounding 21.9, Defense 23.2, Playmaking 19.7, Offense 28.8) and instructs it to say when a category is barely above chance
+- Backends (OpenAI-compatible chat completions, temperature 0): hosted NVIDIA NIM API (`LLM_BACKEND=nim`, key read only from the `NVIDIA_API_KEY` environment variable, never printed or stored), a local NIM container (`local`), or LM Studio (`lmstudio`). Model ID is configurable (`NIM_MODEL`); the default ID has not been verified against the live catalog
+- Grounding check: every skill/level claim in the generated report is validated against the model output (known skill, exact predicted level, strengths among the top-6 and weaknesses among the bottom-6 skills by expected quality with the inverted Defensive Consistency handled, no skill listed twice, and the confidence note must cite the reliability numbers). `eval` mode reports parsed / faithful reports and valid claims over N videos
+- Tests: 6 pass using a deterministic mock writer (validator accepts faithful reports and catches wrong levels, invented skills, a weakest skill called a strength, and missing reliability numbers; prompt contains the measured reliability numbers; a missing key fails loudly with no network call)
+- Not done: no live LLM call has been made (no API key in this environment and no local LLM server running), so there are no faithfulness numbers for any real model yet; no human evaluation of report quality. A faithful report only means it matches the model output, which itself is weak (23.4% top-1); it says nothing about whether the player is actually good at those skills
+
+---
+
 ## 2026-10-05 — Custom CUDA kernel: fused Swin3D window partition/reverse
 
 - Motivation (from the profile): after fused attention, copy/cast/layout kernels were still 21.7% of GPU time. Swin's windowed attention does pad -> roll -> view/permute/reshape (three full passes over the activations) per layer on the way in and the mirror image on the way out; both are pure index permutations plus zero padding
