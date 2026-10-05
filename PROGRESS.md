@@ -4,6 +4,17 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Inference benchmark: precision x fused attention
+
+- Ran the trained pilot checkpoint in 8 variants (fp32, bf16 autocast, fp16 autocast, bf16 weights, fp16 weights; stock vs SDPA attention). Full table and caveats in RESULTS.md
+- Headline: fp16 weights + SDPA versus fp32 stock: batch-1 latency 31.5 -> 9.6 ms (3.3x), batch-4 throughput 34.9 -> 115.9 videos/s (3.3x), peak VRAM 1.37 -> 0.65 GiB (-53%), top-1 predictions identical on all 1,000 checked (50 videos x 20 skills), max logit difference 0.0004
+- The SDPA patch alone: fp32 31.5 -> 24.0 ms at batch 1, and under bf16 autocast batch-4 latency 81.8 -> 40.6 ms (2.0x)
+- bf16 changed 3 to 4 of 1,000 predictions relative to fp32; fp16 changed none
+- Test accuracy per variant is 0.185-0.188 for all variants; the model is at chance, so this says nothing about quality loss beyond "predictions did not change"
+- Not measured: CUDA graphs, `torch.compile` (Triton is not available on this Windows setup), int8/fp8 quantization, other checkpoints
+
+---
+
 ## 2026-10-05 — Fused attention (SDPA) for Swin3D: measured speedup
 
 - Decision: the user answered the TensorRT question with "proceed with q1"; I took that as the PyTorch-side option and optimized against the profile instead of using TensorRT (still blocked, see below)
