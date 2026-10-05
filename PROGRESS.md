@@ -4,6 +4,23 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Pilot class balance
+
+- Per-skill label distribution computed for pilot train (100), val (20), test (30); figure saved locally to `reports/class_balance.png` (gitignored)
+- Baselines, averaged over the 20 skills (measured on the pilot labels):
+
+| Split | Uniform random | Always predict train-majority level per skill |
+|---|---|---|
+| train | 20.0% | 24.5% (in-sample) |
+| val | 20.0% | 18.8% |
+| test | 20.0% | 21.3% |
+
+- Train is close to balanced: the most common level of any skill holds at most 29% of videos (Offensive Consistency, Offensive Rebound), the least common level holds at least 10%
+- Val and test are small, so their label shares are noisy (val: one video = 5% of a row; shares range 5% to 40%; test 7% to 43%)
+- Consequence: on the pilot, val/test accuracy differences of a few points should not be read as real. The pilot run proves the pipeline works; it is not a result comparable to the paper's 28.5%
+
+---
+
 ## 2026-10-05 — Loader throughput benchmark
 
 - Added `make_loader` (pin_memory, persistent workers, prefetch 2) and 3 loader tests; full suite: 10 passed in 13.6 s
