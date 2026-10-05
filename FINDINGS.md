@@ -31,6 +31,18 @@ Human baseline (3-level version of the task, 33.3% random floor): novices 43%, e
 
 Offense sub-skills — Impact (37.24%) and Efficiency (36.14%) specifically — score well above every other category. These are the skills most correlated with aggregate box-score production. The paper does not test statistical fusion, but this pattern is the direct motivation for Hypothesis 1 in this project: skills closer to statistical aggregates are easier for a pure video model to approximate; skills requiring visual technique judgment (lowest single skill: 3-PTs at 24.14%; Contested-shots is 26.62%, per the paper's Table 8) are where video alone struggles most.
 
+### Skill-to-category grouping (paper Table 8)
+
+| Category | Skills |
+|---|---|
+| Shooting (5) | Free Throws, 2-PTs, 3-PTs, Contested Shots, Overall Shooting |
+| Rebounding (3) | Rebounds, Defensive Rebound, Offensive Rebound |
+| Defense (4) | Steals, Fouls, Points Allowed, Defensive Consistency |
+| Playmaking (3) | Assists, Passing Accuracy, Turnovers |
+| Offense (5) | Contribution, Offensive Consistency, Teamwork, Impact, Efficiency |
+
+This project reports per-category accuracy with exactly this grouping. Category accuracy is the mean of its skills' accuracies, as in the paper.
+
 ## Finding 2 — Scaling web pretraining does not transfer
 
 InternVideo2 (1024M params, pretrained on LAION + WebVid + Kinetics-710) scores 27.52%, barely above VideoMamba (74M params, 28.50%). Larger, more heavily pretrained backbones are not the lever that closes the gap to human performance.
