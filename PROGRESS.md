@@ -4,6 +4,30 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Loader throughput benchmark
+
+- Added `make_loader` (pin_memory, persistent workers, prefetch 2) and 3 loader tests; full suite: 10 passed in 13.6 s
+- Benchmark: pilot train split (100 videos), batch size 4, decord, one untimed warm-up of 3 batches then one timed full pass per config, AMD Ryzen AI 9 HX 370 (12 cores / 24 threads). Single run per config, so treat small differences as noise.
+
+| Frames | Workers | Seconds (100 videos) | Videos/s |
+|---|---|---|---|
+| 16 | 0 | 34.7 | 2.88 |
+| 16 | 2 | 20.7 | 4.83 |
+| 16 | 4 | 15.6 | 6.41 |
+| 16 | 8 | 25.3 | 3.95 |
+| 16 | 12 | 15.9 | 6.27 |
+| 32 | 0 | 53.7 | 1.86 |
+| 32 | 2 | 34.6 | 2.89 |
+| 32 | 4 | 24.7 | 4.05 |
+| 32 | 8 | 24.7 | 4.06 |
+| 32 | 12 | 24.5 | 4.09 |
+
+- Scaling flattens after 4 workers (about 2.2x over 0 workers at 16 frames, 2.2x at 32). The 16-frame / 8-worker dip is unexplained: it was not re-run and the cause is not measured.
+- Per-video cost is far above the earlier sequential-decode figure (~6,200 fps), so random-access seeking across a 15.8k-frame H.264 file, not raw decode speed, is the likely cost. This is a hypothesis; not yet profiled.
+- Consequence for training: at 16 frames the loader alone needs about 16 s per pilot epoch at best (4 workers); use 4 workers as the default.
+
+---
+
 ## 2026-10-05 — Dataset class
 
 - Added a `BasketDataset` (decord decode with in-decoder resize to 224x224, deterministic uniform frame sampling over the full video, ImageNet normalization) returning `frames[T,3,224,224]` and 20 skill labels (0-4)
