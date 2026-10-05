@@ -4,6 +4,39 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Model wrapper and GPU cost
+
+- Added `SkillClassifier`: torchvision Swin3D-T (Kinetics-400 weights, 27.9M params) + dropout + linear head -> logits [B, 20, 5], mean cross-entropy over the 20 skills, optional per-stage gradient checkpointing
+- Why not VideoMamba: weights exist on Hugging Face, but `mamba_ssm` (CUDA kernels) could not be obtained by pip here and there is no `nvcc`/MSVC; I did not attempt a from-source build. See RESULTS.md for the substitution note
+- 4 model tests pass (shape, backward, checkpointed gradients equal plain gradients, bf16 CUDA forward with pretrained weights). One test initially failed because Swin3D applies stochastic depth in train mode; seeding the RNG identically fixed it, so the model code was not at fault
+- Measured on the RTX 5070 Ti Laptop (12 GiB), 224x224, bf16 autocast, AdamW step included, mean of 3 steps after 1 warm-up:
+
+| Frames | Batch | Grad ckpt | Peak GiB | Sec/step |
+|---|---|---|---|---|
+| 16 | 1 | no | 1.67 | 0.871 |
+| 16 | 1 | yes | 1.20 | 1.166 |
+| 16 | 2 | no | 2.91 | 1.742 |
+| 16 | 2 | yes | 1.95 | 2.305 |
+| 16 | 4 | no | 5.40 | 3.556 |
+| 16 | 4 | yes | 3.43 | 4.774 |
+| 16 | 8 | no | 10.37 | 54.905 |
+| 16 | 8 | yes | 6.41 | 7.948 |
+| 32 | 1 | no | 2.91 | 1.444 |
+| 32 | 1 | yes | 1.95 | 1.942 |
+| 32 | 2 | no | 5.39 | 3.562 |
+| 32 | 2 | yes | 3.44 | 4.841 |
+| 32 | 4 | no | 10.37 | 12.937 |
+| 32 | 4 | yes | 6.41 | 9.844 |
+| 32 | 8 | no | out of memory | - |
+| 32 | 8 | yes | 12.37 (above the card's ~11.9 GiB) | 24.941 |
+
+- Checkpointing saves about 35% peak memory (e.g. 5.40 -> 3.43 GiB at 16 frames, batch 4) at about 1.3x step time
+- Throughput is roughly linear in batch (0.87 s for 1 video, 3.56 s for 4), i.e. no batching gain. That is slow for a 28M-parameter model and has not been explained; profiling is task 7. Other apps share the GPU (about 1.4 GiB in use before I started)
+- Rows that approach or exceed ~10 GiB (16f/b8/no-ckpt at 54.9 s/step, 32f/b8/ckpt) are far slower per sample; consistent with memory pressure but I did not verify the cause
+- Baseline-run plan (task 6): 16 frames, batch 4 fits comfortably without checkpointing (5.40 GiB, 3.56 s/step, about 25 steps per 100-video epoch). TASKS.md suggested checkpointing; it is not needed at this batch size, and I will say so in the run record
+
+---
+
 ## 2026-10-05 — Pilot class balance
 
 - Per-skill label distribution computed for pilot train (100), val (20), test (30); figure saved locally to `reports/class_balance.png` (gitignored)
