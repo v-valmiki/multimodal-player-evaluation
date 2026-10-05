@@ -4,6 +4,31 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Profiling a training step (torch.profiler)
+
+- Config: the baseline setup (Swin3D-T, 16 frames, batch 4, bf16 autocast, 4 loader workers), steady state after 2 warm-up steps, then `torch.profiler` over 3 active steps. Nsight Systems is not installed on this machine (no `nsys`), so this is `torch.profiler` only. Trace analysis uses GPU kernel events (not op wrappers, which double count)
+- Step time: 3.55 s per step of 4 videos, measured without the profiler (12 steps; max 3.57 s). Kernel span in the profiled steps: 3.57 s/step, consistent with it
+- Input pipeline: data wait was 0.000 s mean (0.0% of the step). Training is not input-bound
+- GPU occupancy: GPU busy 97.4% of the kernel span (union of kernel intervals), 1,599 kernel launches per step, median kernel 179 us. So the step is GPU-bound, not CPU/launch-bound
+- Where the GPU time goes (sum of kernel durations, family assigned by kernel-name pattern, so approximate):
+
+| Kernel family | Share of GPU time | Launches (3 steps) |
+|---|---|---|
+| Copy / dtype cast / layout | 28.8% | 2,289 |
+| Elementwise (add, mul, GELU, dropout...) | 27.1% | 1,005 |
+| GEMM / matmul (tensor-core work) | 18.8% | 762 |
+| Softmax | 16.2% | 78 |
+| LayerNorm | 4.5% | 261 |
+| Reductions | 4.0% | 261 |
+
+- Biggest single kernels: a bf16 copy/cast kernel 12.8%, an fp32 elementwise binary kernel 10.8%, fp32 softmax backward 9.5% and forward 6.7% (softmax runs in fp32 even under bf16 autocast), cutlass bf16 GEMMs about 5.7% each
+- Reading: only about a fifth of GPU time is the matmul work tensor cores are good at; most is memory-bound copies, elementwise ops and fp32 softmax in the attention path. That matches the earlier finding that cost scales linearly with batch (no batching gain)
+- GPU clocks while busy (samples with util >= 80%, n=66): SM clock mean 1,741 MHz vs 3,090 MHz maximum, power mean 32.8 W, temp max 71 C. I did not determine why the clock is well below maximum (power/thermal limits and memory-bound load are both candidates); this is not established
+- Not tested (hypotheses only): fused attention via `scaled_dot_product_attention`, `torch.compile`, avoiding fp32 softmax, fewer layout copies. These are the candidate optimizations for a future step; no speedup has been measured
+- Not measured: a full-epoch profile (3 steps profiled, 12 timed), multiple runs, or a comparison with another backbone
+
+---
+
 ## 2026-10-05 — Phase 1 pilot baseline run
 
 - Swin3D-T (K400 init) trained on the 100-video pilot train split for 15 epochs (about 99 s/epoch, about 25 min total, 16 frames, batch 4, bf16, seed 0). Val evaluated each epoch; test evaluated once at the best-val checkpoint. Full details and caveats in RESULTS.md
