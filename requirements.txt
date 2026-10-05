@@ -13,3 +13,7 @@ decord==0.6.0
 matplotlib==3.11.2
 jupyter==1.1.1
 pytest==9.1.1
+# ONNX export (verified working). TensorRT is intentionally not pinned: its Python binding is
+# unsigned and blocked by Windows Smart App Control on this machine (see PROGRESS.md).
+onnx==1.23.1
+onnxscript==0.7.2
