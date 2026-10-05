@@ -1,0 +1,15 @@
+# Install torch first, from the CUDA 12.8 index (needed for Blackwell / RTX 50-series):
+#   pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
+# Then:
+#   pip install -r requirements.txt
+huggingface_hub==2.1.1
+pandas==3.0.6
+pyarrow==25.0.1
+numpy==2.5.2
+tqdm==4.70.1
+opencv-python==5.0.0.93
+av==19.0.1
+decord==0.6.0
+matplotlib==3.11.2
+jupyter==1.1.1
+pytest==9.1.1
