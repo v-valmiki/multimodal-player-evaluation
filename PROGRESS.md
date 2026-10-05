@@ -4,6 +4,26 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — Cached frames remove the input bottleneck: end-to-end epoch time
+
+- Problem (from the re-profile): after the GPU-side fixes the loop is input-bound; decoding with random seeks supplies only about 6 videos/s
+- Fix: `CachedBasketDataset` stores each video's decoded uint8 frames (16 x 224 x 224 x 3, 2.4 MB) as `.npy` on first use. Valid because frame sampling is deterministic with no augmentation; the cache key includes frame count and size; writes are atomic so loader workers are safe. 2 new tests (cached items bit-identical to uncached; key depends on frame count); full suite 22 passed
+- Benchmark: one full epoch over the 100 pilot-train videos, batch 4, 16 frames, bf16 autocast, 4 workers, after an untimed warm-up epoch; the whole benchmark run twice:
+
+| Config | Run 1: epoch s (videos/s, loader wait) | Run 2: epoch s (videos/s, loader wait) |
+|---|---|---|
+| Stock attention, no cache | 13.8 (7.2, 58%) | 17.3 (5.8, 66%) |
+| SDPA attention, no cache | 18.3 (5.5, 81%) | 16.8 (6.0, 79%) |
+| Stock attention, cached frames | 5.7 (17.5, 5%) | 5.5 (18.2, 3%) |
+| SDPA attention, cached frames | 3.5 (28.4, 5%) | 3.6 (27.5, 7%) |
+
+- Reading: uncached runs are loader-limited and noisy (13.8-18.3 s across 4 measurements); the SDPA patch does not help them end to end because the GPU is waiting. With cached frames the loader wait drops to 3-7% and the GPU-side gain shows: 5.5-5.7 s -> 3.5-3.6 s
+- Combined effect, uncached stock -> cached SDPA: about 13.8-17.3 s -> 3.5-3.6 s per epoch, i.e. 3.8x to 4.9x (the range reflects the noise in the uncached baseline)
+- Caveats: pilot-sized (100 videos); the cache costs 2.4 MB per video per frame setting (about 360 MB for the 150-video pilot; about 2.5 GB for the 1,046-video training split of a full NCAA D1 season at 16 frames); random temporal augmentation would require caching more frames; the first epoch with a cold cache pays the decode cost once
+- This is a throughput result only; accuracy was not re-measured because training with the patch/cache is mathematically the same function and data
+
+---
+
 ## 2026-10-05 — Inference benchmark: precision x fused attention
 
 - Ran the trained pilot checkpoint in 8 variants (fp32, bf16 autocast, fp16 autocast, bf16 weights, fp16 weights; stock vs SDPA attention). Full table and caveats in RESULTS.md
