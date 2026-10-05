@@ -16,6 +16,7 @@ Updated as each phase produces a number. All accuracy figures are top-1, average
 |---|---|---|---|
 | 1 (PILOT) | Swin3D-T (K400) on 150-video pilot, 16 frames, test n=30 | 18.5 | Chance level. NOT comparable to the paper's 28.5% (different backbone; 100 of the 19,578 official training videos, about 0.5%). See below |
 | **1** | **Swin3D-T (K400), full NCAA D1 2018-19 season (1,046 train / 159 val / 361 test), 16 frames, 3 seeds** | **23.4 +/- 0.2** (23.6, 23.2, 23.5) | Above chance (20.0%); NOT a VideoMamba reproduction and not like-for-like with the paper's 28.5% (see below) |
+| **1b** | **VideoMamba-M (74M, K400), same full-season data, 16 frames, 6-epoch schedule, seed 0, trained under WSL2/Linux** | **23.0** | Not distinguishable from Swin3D-T (23.4 +/- 0.2); single seed and a shorter schedule; not like-for-like with the paper's 28.5% (see below) |
 | 2 | + Explicit player tracking | — | Pending |
 | 3 | + Multimodal fusion (stats + pose) | — | Pending |
 | 4 | + Clip-level aggregation | — | Pending |
@@ -33,13 +34,32 @@ Updated as each phase produces a number. All accuracy figures are top-1, average
 
 - Pattern: the four best test skills are all in the Offense category (Contribution 33.0, Impact 30.6, Efficiency 28.3, Teamwork 27.2; paper: Contribution 35.09, Impact 37.24, Efficiency 36.14, Teamwork 30.17), and Offense is the best category. This matches the paper's observation that stats-aggregate-like skills are the easiest for a video-only model. Technique-heavy categories are at or near chance here (Shooting 21.4, Playmaking 19.7; weakest skills 3-pt Shooting 18.8, Overall Shooting 19.1, Passing Accuracy 19.1, Steals 19.8). The paper's categories are not directly comparable to these numbers (different data size, backbone, and test set), but the ordering of categories is the same.
 - Overfitting: train loss falls to about 0.59 while val loss rises to about 2.35-2.39; val accuracy peaks at epoch 4-5 and then drifts down. The best epoch is early in every seed. Regularization and augmentation were not tried.
-- What this does not show: the effect of any Phase 2-4 idea (tracking, fusion, clip-level aggregation); results for other seasons or leagues; a comparison against VideoMamba on the same data. The paper's 28.5% uses all 19,578 training videos from 21 leagues and a 5,700-video test set.
+- What this does not show: the effect of any Phase 2-4 idea (tracking, fusion, clip-level aggregation); results for other seasons or leagues. A VideoMamba comparison on the same data now exists (next section). The paper's 28.5% uses all 19,578 training videos from 21 leagues and a 5,700-video test set.
+
+### VideoMamba-M vs Swin3D-T on the same data
+
+- Setup: the paper's backbone family. VideoMamba-M (73.9M parameters, public Kinetics-400 16-frame weights, new 100-way head), the same full-season splits, cached frames, 16 frames at 224x224, bf16, batch 4, and the same learning rates, weight decay and loss as the Swin3D runs, with all 32 layers gradient-checkpointed. Built from OpenGVLab's own code (with four small patches for CUDA 13 / Blackwell, listed in PROGRESS.md) and trained under WSL2 Ubuntu because `mamba_ssm` cannot be built on this Windows setup.
+- Deviations from the Swin3D protocol: a 6-epoch one-cycle schedule instead of 15 (VideoMamba-M took 8 to 22 minutes per epoch (1.7 s/step with the GPU at full clocks, 4.4 s/step when it was throttled; Swin3D-T needs about 0.14 s/step in the good state, so roughly 12-30x slower per step), and the Swin3D runs peaked at epochs 4-5), and a single seed (0). Best epoch chosen on val (epoch 3); test evaluated once at that checkpoint.
+- Result: test 23.0%, val 24.9% at the selected epoch (val curve 23.0, 23.3, 24.9, 23.6, 24.0, 23.8). Train loss falls from 1.62 to 1.23 while val loss rises from 1.59 (epoch 2) to 1.72: the same overfitting pattern as Swin3D-T, only slower to set in.
+
+| Test accuracy (%) | Shooting | Rebounding | Defense | Playmaking | Offense | Overall |
+|---|---|---|---|---|---|---|
+| VideoMamba-M, seed 0 (6 epochs) | 21.9 | 20.2 | 22.7 | 21.6 | 27.0 | 23.0 |
+| Swin3D-T, mean of 3 seeds (15 epochs; min-max) | 21.4 (21.3-21.6) | 21.9 (21.1-22.7) | 23.2 (23.1-23.3) | 19.7 (19.0-20.7) | 28.8 (28.0-30.0) | 23.4 (23.2-23.6) |
+| Difference | +0.5 | -1.6 | -0.5 | +1.9 | -1.8 | -0.4 |
+
+- Reading: on this data and budget the two backbones are not distinguishable. The overall difference (-0.4 points) is smaller than the test set's sampling uncertainty (361 videos) and VideoMamba has one seed; the category differences (up to 1.9 points) are of similar size to the Swin3D seed-to-seed range, so none of them is a finding. Both models show the same ordering as the paper: Offense is the best category by a wide margin (VideoMamba 27.0%, Swin3D-T 28.8%), driven by Contribution 31.3, Teamwork 28.8, Impact 27.4 for VideoMamba.
+- 15 of 20 skills are above the 20% chance level for VideoMamba; the weakest are Steals 17.5, Defensive Rebound 17.7, Overall Shooting 18.0 and Fouls 19.1.
+- This is consistent with the paper's own Finding 2 (a bigger or differently built pretrained backbone does not close the gap) but does not test it: the paper's 28.5% for VideoMamba uses 64 frames and 19,578 training videos, and this run uses 16 frames and 1,046. No claim is made that VideoMamba is better or worse than Swin3D-T in general.
+- Not done: more seeds, the 15-epoch schedule, 32 or 64 frames, regularization or augmentation; each would need hours of GPU time at this speed.
 
 ### Pilot baseline (150-video subset, superseded by the full-season run)
 
 The 150-video pilot run (test 18.5%, chance level) is kept below as the first end-to-end check of the pipeline.
 
 ### Backbone substitution (Phase 1)
+
+**Update (later on 2026-10-05):** the Windows-side limitation described below no longer blocks VideoMamba: it was built and trained under WSL2 Ubuntu (see "VideoMamba-M vs Swin3D-T on the same data" above). The Swin3D-T rows remain the Windows/PyTorch baseline. The original note follows.
 
 The plan named VideoMamba (74M) as the Phase 1 backbone. Its pretrained weights are public on Hugging Face (`OpenGVLab/VideoMamba`), but the model depends on the compiled `mamba_ssm` CUDA kernels. On the local machine (Windows, Python 3.13, RTX 50-series) pip could not obtain a build of `mamba-ssm`, and neither `nvcc` nor the MSVC compiler is installed. Phase 1 therefore uses **torchvision Swin3D-T (27.9M parameters, Kinetics-400 pretrained)** as a stand-in video transformer. Phase 1 numbers are therefore **not a VideoMamba reproduction** and must not be compared to the paper's 28.5% as if they were. Revisit VideoMamba if a CUDA toolchain is set up (or on a Linux cloud/Savio machine).
 
