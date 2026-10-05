@@ -31,6 +31,27 @@ The plan named VideoMamba (74M) as the Phase 1 backbone. Its pretrained weights 
 - Per-category test accuracies (24.0 / 16.7 / 18.3 / 13.3 / 17.3) come from 30 videos per skill and are noise-dominated; they should not be read as a category pattern (for example, val Offense was 30.0% while test Offense was 17.3%).
 - Interpretation limits: this run cannot separate "too little data" from "the signal is not learnable by this backbone/setup". The paper trains on the full dataset and reaches 28.5% even at best, so a pilot at chance is not surprising, but also not evidence either way.
 
+## Inference optimization (Phase 1 pilot model)
+
+Measured on the RTX 5070 Ti Laptop (12 GB), 16 frames at 224x224, the trained pilot checkpoint, 30 timed forwards after 5 warm-up (median), single session. Correctness is reported as agreement with the fp32 stock model over all 50 val+test pilot videos (1,000 per-skill predictions), not as accuracy: the pilot model is at chance (about 18.7% test), so accuracy deltas would be meaningless.
+
+"SDPA" = the fused-attention patch for Swin3D (see PROGRESS.md); "weights" = the model converted to that dtype, versus "autocast".
+
+| Variant | Latency b1 (ms) | Latency b4 (ms) | Throughput b4 (videos/s) | Peak VRAM b4 (GiB) | Top-1 agreement | Max abs logit diff |
+|---|---|---|---|---|---|---|
+| fp32 stock | 31.5 | 114.6 | 34.9 | 1.37 | 1.0000 (reference) | 0 (reference) |
+| fp32 + SDPA | 24.0 | 90.3 | 44.3 | 1.05 | 1.0000 | < 0.0001 |
+| bf16 autocast stock | 22.2 | 81.8 | 48.9 | 1.40 | 0.9970 | 0.0023 |
+| bf16 autocast + SDPA | 11.8 | 40.6 | 98.5 | 0.78 | 0.9970 | 0.0024 |
+| fp16 autocast stock | 22.9 | 77.4 | 51.7 | 1.47 | 1.0000 | 0.0003 |
+| fp16 autocast + SDPA | 12.6 | 40.7 | 98.3 | 0.85 | 1.0000 | 0.0004 |
+| bf16 weights + SDPA | 10.7 | 36.0 | 111.1 | 0.65 | 0.9960 | 0.0029 |
+| **fp16 weights + SDPA** | **9.6** | **34.5** | **115.9** | **0.65** | **1.0000** | **0.0004** |
+
+- Best variant (fp16 weights + SDPA) versus fp32 stock: 3.3x lower batch-1 latency (31.5 to 9.6 ms), 3.3x higher batch-4 throughput (34.9 to 115.9 videos/s), 53% less peak VRAM, identical top-1 predictions on all 1,000 checked, max logit difference 0.0004.
+- bf16 flips 3-4 of 1,000 predictions relative to fp32 (agreement 0.996-0.997) with max logit difference about 0.002-0.003; fp16 flipped none, which is expected from fp16's extra mantissa bits at these logit magnitudes.
+- Caveats: one session, one checkpoint, 50 evaluation videos; fp32 uses PyTorch defaults (no TF32 matmuls); fp16 weights were safe for this model on these inputs, which is not a general guarantee. This is PyTorch-side optimization; no TensorRT numbers exist (TensorRT is blocked on this machine, see PROGRESS.md).
+
 ## Per-Skill-Category Breakdown
 
 Fill in once Phase 1 baseline is available, to track how each subsequent phase shifts category-level performance relative to the paper's own breakdown (Shooting 26.47%, Rebounding 26.62%, Defense 27.38%, Playmaking 25.39%, Offense 34.60%).
