@@ -4,6 +4,17 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
+## 2026-10-05 — VideoMamba-M builds and trains under WSL (results pending)
+
+- Why it was missing: VideoMamba needs two custom CUDA extensions (`mamba_ssm`, `causal-conv1d`) with no Windows wheels and no compiler here. In WSL they build from OpenGVLab's own forks (commit 37355c2, July 2024) after four small patches for this machine: compile only for Blackwell (sm_120; the forks listed sm_70/80/90 and CUDA 13 dropped sm_70), replace `cub::CTA_SYNC()` and `cub::LaneId()` (removed in CUDA 13's CCCL 3) with `__syncthreads()` and the PTX lane-id register, build with `-std=c++20` (PyTorch 2.14's headers require it), and make an eager language-model import in `mamba_ssm/__init__.py` lazy (it needs removed `transformers` APIs and VideoMamba does not use it). The `causal-conv1d` fork built unmodified apart from the arch list
+- Verified: VideoMamba-M has 73.9M parameters with the public Kinetics-400 16-frame weights loading with 0 missing and 0 unexpected keys; a bf16 forward gives finite outputs; every one of its 552 parameters receives a non-zero gradient, and gradient checkpointing gives the identical loss with gradients within about 0.5% of the unchecked run (bf16 recompute noise)
+- Training setup: same protocol as the Swin3D runs (full NCAA D1 2018-19 season, same hyperparameters, cached frames, bf16, per-epoch val, best epoch chosen on val, test evaluated once), new 100-way head, all 32 layers gradient-checkpointed (peak 2.7 GiB at batch 4)
+- Speed: 2.68 s per step at batch 4 (262 steps per epoch, about 12 minutes plus evaluation), about 20 times slower per step than Swin3D-T on the same GPU, so a 15-epoch run would take about 3 hours. Because of that, the VideoMamba run uses a 6-epoch one-cycle schedule instead of 15 (the Swin3D runs peaked at epochs 4-5), a stated deviation from the Swin3D protocol, and only seed 0 is run
+- Incident: the first 15-epoch attempt froze at step 86 of epoch 1 after the laptop slept for about 90 minutes (the WSL GPU context did not survive the suspend). Killed, verified a fresh process works, restarted with per-25-step progress logging and a power request that holds the machine awake while the run lasts
+- Result: pending; this entry is updated when the run finishes
+
+---
+
 ## 2026-10-05 — Scouting-report agent (NVIDIA NIM or local LLM): built and tested, not yet run live
 
 - What it does: takes the trained Swin3D-T model's per-skill probabilities for a test video (dumped for all 361 test videos; top-1 over those 7,220 predictions 23.5%, matching the baseline) and has an LLM write a short scouting report. The LLM is a writer, not a source of facts: the prompt contains only the model output plus the model's measured reliability (23.4% top-1 overall vs 20% chance; by category Shooting 21.4, Rebounding 21.9, Defense 23.2, Playmaking 19.7, Offense 28.8) and instructs it to say when a category is barely above chance
