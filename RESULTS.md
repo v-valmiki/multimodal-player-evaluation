@@ -15,9 +15,29 @@ Updated as each phase produces a number. All accuracy figures are top-1, average
 | Phase | Description | Overall Acc (%) | Notes |
 |---|---|---|---|
 | 1 (PILOT) | Swin3D-T (K400) on 150-video pilot, 16 frames, test n=30 | 18.5 | Chance level. NOT comparable to the paper's 28.5% (different backbone; 100 of the 19,578 official training videos, about 0.5%). See below |
+| **1** | **Swin3D-T (K400), full NCAA D1 2018-19 season (1,046 train / 159 val / 361 test), 16 frames, 3 seeds** | **23.4 +/- 0.2** (23.6, 23.2, 23.5) | Above chance (20.0%); NOT a VideoMamba reproduction and not like-for-like with the paper's 28.5% (see below) |
 | 2 | + Explicit player tracking | — | Pending |
 | 3 | + Multimodal fusion (stats + pose) | — | Pending |
 | 4 | + Clip-level aggregation | — | Pending |
+
+### Phase 1 on the full NCAA D1 2018-19 season
+
+- Setup: Swin3D-T (Kinetics-400 init, 27.9M parameters), 1,046 train / 159 val / 361 test videos (the official splits restricted to NCAA D1 2018-19, about 5.3% of the 19,578 official training videos), 16 frames at 224x224, bf16, batch 4, AdamW + one-cycle schedule, 15 epochs, fused-attention patch and cached frames (mathematically the same model and data). Hyperparameters are identical to the pilot run and were fixed before it; nothing was tuned on val or test. Best epoch picked by val accuracy (epochs 5, 4, 4); test evaluated once per seed at that checkpoint. Seeds 0, 1, 2.
+- Overall test accuracy 23.4% +/- 0.2 (std over 3 seeds; 23.6, 23.2, 23.5), against 20.0% for uniform random and 17.8% for always predicting each skill's train-majority level (train labels are near-perfectly balanced). Val accuracy at the selected epoch: 26.2% +/- 0.6 (optimistic: the epoch was chosen on it).
+- The seed spread only reflects initialization and data order. It does not include variation from the choice of train/val/test videos, and the test set is 361 videos, so the true uncertainty is larger than the +/- 0.2.
+
+| Test accuracy (%), mean of 3 seeds | Shooting | Rebounding | Defense | Playmaking | Offense |
+|---|---|---|---|---|---|
+| This project (Swin3D-T, 1,046 train videos) | 21.4 | 21.9 | 23.2 | 19.7 | 28.8 |
+| Paper, VideoMamba, full data (not like-for-like) | 26.47 | 26.62 | 27.38 | 25.39 | 34.60 |
+
+- Pattern: the four best test skills are all in the Offense category (Contribution 33.0, Impact 30.6, Efficiency 28.3, Teamwork 27.2; paper: Contribution 35.09, Impact 37.24, Efficiency 36.14, Teamwork 30.17), and Offense is the best category. This matches the paper's observation that stats-aggregate-like skills are the easiest for a video-only model. Technique-heavy categories are at or near chance here (Shooting 21.4, Playmaking 19.7; weakest skills 3-pt Shooting 18.8, Overall Shooting 19.1, Passing Accuracy 19.1, Steals 19.8). The paper's categories are not directly comparable to these numbers (different data size, backbone, and test set), but the ordering of categories is the same.
+- Overfitting: train loss falls to about 0.59 while val loss rises to about 2.35-2.39; val accuracy peaks at epoch 4-5 and then drifts down. The best epoch is early in every seed. Regularization and augmentation were not tried.
+- What this does not show: the effect of any Phase 2-4 idea (tracking, fusion, clip-level aggregation); results for other seasons or leagues; a comparison against VideoMamba on the same data. The paper's 28.5% uses all 19,578 training videos from 21 leagues and a 5,700-video test set.
+
+### Pilot baseline (150-video subset, superseded by the full-season run)
+
+The 150-video pilot run (test 18.5%, chance level) is kept below as the first end-to-end check of the pipeline.
 
 ### Backbone substitution (Phase 1)
 
@@ -77,7 +97,8 @@ Fill in once Phase 1 baseline is available, to track how each subsequent phase s
 
 | Phase | Shooting | Rebounding | Defense | Playmaking | Offense |
 |---|---|---|---|---|---|
-| 1 (PILOT, test n=30) | 24.0 | 16.7 | 18.3 | 13.3 | 17.3 |
+| 1 (full season, mean of 3 seeds, test n=361) | 21.4 | 21.9 | 23.2 | 19.7 | 28.8 |
+| 1 (PILOT, test n=30, superseded) | 24.0 | 16.7 | 18.3 | 13.3 | 17.3 |
 | 2 | — | — | — | — | — |
 | 3 | — | — | — | — | — |
 | 4 | — | — | — | — | — |
