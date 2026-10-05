@@ -111,6 +111,40 @@ Measured on the RTX 5070 Ti Laptop (12 GB), 16 frames at 224x224, the trained pi
 - bf16 flips 3-4 of 1,000 predictions relative to fp32 (agreement 0.996-0.997) with max logit difference about 0.002-0.003; fp16 flipped none, which is expected from fp16's extra mantissa bits at these logit magnitudes.
 - Caveats: one session, one checkpoint, 50 evaluation videos; fp32 uses PyTorch defaults (no TF32 matmuls); fp16 weights were safe for this model on these inputs, which is not a general guarantee. This is PyTorch-side optimization; no TensorRT numbers exist (TensorRT is blocked on this machine, see PROGRESS.md).
 
+## Custom CUDA kernel, TensorRT and Nsight (WSL2 Ubuntu, CUDA 13.1)
+
+Measured on the same RTX 5070 Ti Laptop GPU under WSL2 (Windows is blocked from TensorRT by Smart App Control and has no CUDA compiler). The GPU is power- and thermally limited in this laptop, so single timing passes were not reproducible; every timing below uses interleaved rounds and reports spread, and ratios are more reliable than absolute times.
+
+**Custom CUDA kernel (fused Swin3D window partition and reverse, `nvcc` 13.1, sm_120).** Replaces PyTorch's pad, roll and permute-copy sequence (three memory passes per direction) with one gather pass. Bitwise-identical output to PyTorch in fp16, bf16 and fp32, including padding and shifts, forward and gradients; full-model outputs unchanged.
+
+| Swin3D-T stage (batch 4, bf16) | Partition: stock to fused | Reverse: stock to fused |
+|---|---|---|
+| Stage 1 (4,8,56,56,96) | 818.5 to 93.0 us (8.8x) | 817.6 to 97.6 us (8.4x) |
+| Stage 2 (4,8,28,28,192) | 630.0 to 76.8 us (8.2x) | 580.0 to 70.6 us (8.2x) |
+| Stage 3 (4,8,14,14,384) | 291.6 to 39.8 us (7.3x) | 269.0 to 35.9 us (7.5x) |
+
+| Training step (16 frames, batch 4, bf16, 7 interleaved rounds) | Median (min-max) | Speedup vs stock | Peak VRAM |
+|---|---|---|---|
+| Stock | 449.8 ms (436.6-489.1) | 1.00x | 5.44 GiB |
+| + fused attention (SDPA) | 302.6 ms (278.1-364.8) | 1.49x | 2.77 GiB |
+| + fused attention + custom CUDA kernels | 261.6 ms (236.2-293.2) | 1.72x | 2.77 GiB |
+
+The custom kernels add a median 1.17x on top of fused attention (paired per-round ratio; range 1.05-1.27). Nsight Systems confirms 619 to 519 copy/layout kernel launches per step, with 48 custom launches added. Absolute step times here are about 2x the earlier Windows numbers because the GPU was throttled; the stock-to-SDPA ratio (1.47x median) matches the Windows measurement (1.60x).
+
+**TensorRT 11.3 engines (fp32, fp16, bf16) built from the ONNX export of the trained pilot model** (batch 1 and 4, static shapes), checked on 50 val+test videos (1,000 per-skill predictions):
+
+| Variant | Top-1 agreement with fp32 | Max logit diff | Device memory at batch 4 |
+|---|---|---|---|
+| PyTorch fp32 stock | reference | 0 | 1.39 GiB |
+| PyTorch fp16 + fused attention | 1.000 | 0.0004 | 0.59 GiB |
+| TensorRT fp32 | 1.000 | 0.0002 | 1.19 GiB |
+| TensorRT fp16 | 0.999 | 0.0008 | 0.28 GiB |
+| TensorRT bf16 | 0.993 | 0.0036 | 0.29 GiB |
+
+- TensorRT fp16 needs about 53% less device memory than PyTorch fp16 with fused attention and about 80% less than fp32 stock, with one prediction in 1,000 changed.
+- **No latency ranking between TensorRT and fused-attention PyTorch is claimed.** Four runs under different GPU conditions (idle, shared with a training job, throttled) gave different orderings; for example PyTorch fp16+SDPA was 8.9 ms against TensorRT fp16 20.5 ms at batch 1 in the first run and 31.6 ms against 15.5 ms in the interleaved run. What held in every run: fp16 and bf16 variants (either framework) were several times faster than fp32 stock at batch 4. Details and numbers for all runs are in PROGRESS.md.
+- Not tested: FP8/INT8 TensorRT, CUDA graphs for PyTorch, Triton Inference Server. Nsight Compute counters are blocked by a driver permission (`ERR_NVGPUCTRPERM`), so the kernel has timing and launch-count evidence but no DRAM-throughput or occupancy numbers.
+
 ## Per-Skill-Category Breakdown
 
 Fill in once Phase 1 baseline is available, to track how each subsequent phase shifts category-level performance relative to the paper's own breakdown (Shooting 26.47%, Rebounding 26.62%, Defense 27.38%, Playmaking 25.39%, Offense 34.60%).
