@@ -1,6 +1,6 @@
 # Basketball Player Evaluation via Multimodal Deep Learning
 
-**Status:** Active — Phase 1 baseline complete (video-only, NCAA D1 2018-19: 23.4% test vs 20.0% chance, 3 seeds); GPU optimization results in [RESULTS.md](RESULTS.md); Phases 2-4 pending
+**Status:** Active — Phase 1 baselines complete (video-only, NCAA D1 2018-19, test top-1 vs 20.0% chance: Swin3D-T 23.4% over 3 seeds, VideoMamba-M 23.0% for 1 seed); GPU optimization work (fused attention, a custom CUDA kernel, TensorRT, Nsight profiling) in [RESULTS.md](RESULTS.md); Phases 2-4 pending
 **Started:** July 2026
 
 ## Problem
@@ -43,6 +43,10 @@ See [PROGRESS.md](PROGRESS.md) for the latest update.
 ## Results
 
 Tracked in [RESULTS.md](RESULTS.md) as each phase completes.
+
+## Compute
+
+Local RTX 5070 Ti Laptop GPU (12 GB) on Windows 11, plus WSL2 Ubuntu 26.04 (CUDA 13.1, PyTorch 2.14, TensorRT 11.3, Nsight Systems) for the work Windows cannot do (TensorRT, the VideoMamba CUDA extensions, a custom CUDA kernel). Timing on this thermally limited laptop is noisy; RESULTS.md reports spreads and makes no claim where results were not reproducible.
 
 ## Code Status
 
