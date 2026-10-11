@@ -4,7 +4,7 @@ Updated periodically as work moves forward. Most recent entry first.
 
 ---
 
-## 2026-10-05 — VideoMamba-M builds and trains under WSL (results pending)
+## 2026-10-05 — VideoMamba-M builds and trains under WSL (test 23.0%)
 
 - Why it was missing: VideoMamba needs two custom CUDA extensions (`mamba_ssm`, `causal-conv1d`) with no Windows wheels and no compiler here. In WSL they build from OpenGVLab's own forks (commit 37355c2, July 2024) after four small patches for this machine: compile only for Blackwell (sm_120; the forks listed sm_70/80/90 and CUDA 13 dropped sm_70), replace `cub::CTA_SYNC()` and `cub::LaneId()` (removed in CUDA 13's CCCL 3) with `__syncthreads()` and the PTX lane-id register, build with `-std=c++20` (PyTorch 2.14's headers require it), and make an eager language-model import in `mamba_ssm/__init__.py` lazy (it needs removed `transformers` APIs and VideoMamba does not use it). The `causal-conv1d` fork built unmodified apart from the arch list
 - Verified: VideoMamba-M has 73.9M parameters with the public Kinetics-400 16-frame weights loading with 0 missing and 0 unexpected keys; a bf16 forward gives finite outputs; every one of its 552 parameters receives a non-zero gradient, and gradient checkpointing gives the identical loss with gradients within about 0.5% of the unchecked run (bf16 recompute noise)
