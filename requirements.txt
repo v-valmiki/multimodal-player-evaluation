@@ -17,3 +17,5 @@ pytest==9.1.1
 # unsigned and blocked by Windows Smart App Control on this machine (see PROGRESS.md).
 onnx==1.23.1
 onnxscript==0.7.2
+# Scouting-report agent (HTTP calls to a NIM / OpenAI-compatible endpoint)
+requests==2.34.2
